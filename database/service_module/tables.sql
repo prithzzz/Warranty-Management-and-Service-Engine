@@ -157,7 +157,7 @@ CREATE TABLE service_status_log (
   old_status  VARCHAR(20) NULL,
   new_status  VARCHAR(20) NOT NULL,
   changed_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  changed_by  VARCHAR(100) NOT NULL DEFAULT (CURRENT_USER()),
+  changed_by  VARCHAR(100) NOT NULL DEFAULT 'system',
   CONSTRAINT fk_log_request FOREIGN KEY (request_id)
     REFERENCES service_request(request_id) ON DELETE CASCADE
 );

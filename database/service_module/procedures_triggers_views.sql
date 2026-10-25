@@ -61,8 +61,8 @@ CREATE TRIGGER trg_sr_ai
 AFTER INSERT ON service_request
 FOR EACH ROW
 BEGIN
-  INSERT INTO service_status_log (request_id, old_status, new_status)
-  VALUES (NEW.request_id, NULL, NEW.status);
+  INSERT INTO service_status_log (request_id, old_status, new_status, changed_by)
+  VALUES (NEW.request_id, NULL, NEW.status, CURRENT_USER());
 END$$
 
 -- status workflow rules
@@ -89,8 +89,8 @@ AFTER UPDATE ON service_request
 FOR EACH ROW
 BEGIN
   IF NEW.status <> OLD.status THEN
-    INSERT INTO service_status_log (request_id, old_status, new_status)
-    VALUES (NEW.request_id, OLD.status, NEW.status);
+    INSERT INTO service_status_log (request_id, old_status, new_status, changed_by)
+    VALUES (NEW.request_id, OLD.status, NEW.status, CURRENT_USER());
   END IF;
 END$$
 
