@@ -1,6 +1,6 @@
 # Warranty Management and Service Engine
 
-DBMS Level 3 Project. This repository currently holds the MySQL database layer. The pgvector search and the Next.js application will be added in later phases.
+DBMS Level 3 Project.
 
 ## About the project
 
