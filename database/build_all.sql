@@ -1,4 +1,3 @@
--- Builds the complete warranty_engine database.
 -- Run from inside the database folder:   mysql -u root -p < build_all.sql
 
 -- common
@@ -13,8 +12,11 @@ SOURCE sales_module/queries.sql
 SOURCE sales_module/tests.sql
 
 -- service module (Service, Repair and Claims)
--- add the service module files here, in this order:
--- tables, procedures and triggers, sample data, queries, tests
+SOURCE service_module/tables.sql
+SOURCE service_module/procedures_triggers_views.sql
+SOURCE service_module/sample_data.sql
+SOURCE service_module/queries.sql
+SOURCE service_module/tests.sql
 
 SELECT owner AS module, COUNT(*) AS tests, SUM(outcome = 'PASS') AS passed
 FROM test_result GROUP BY owner;
