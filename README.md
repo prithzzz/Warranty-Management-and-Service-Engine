@@ -1,74 +1,117 @@
 # Warranty Management and Service Engine
 
-DBMS Level 3 Project.
+DBMS Level 3 Project. A web application that tracks every serial-numbered product unit from sale to service: who owns it, which warranty covers it, whether it is in a recall batch, and every repair, claim and replacement. Business rules live in the database, and past repairs can be searched by meaning with vector embeddings.
 
-## About the project
+## Tech stack
 
-The engine tracks every serial-numbered product unit from sale to service: who bought it, which warranty covers it, whether it falls inside a recall batch, and every repair, claim and replacement made on it. Business rules such as claim eligibility, recall blocking, stock limits and status workflow are enforced inside the database using constraints, triggers and stored procedures.
+| Part | Technology |
+|---|---|
+| Frontend and backend | Next.js 14 (App Router, API route handlers), React 18 |
+| Relational database | MySQL 8.0.16 or later |
+| Vector database | PostgreSQL 16 with pgvector |
+| Embeddings | all-MiniLM-L6-v2 through @xenova/transformers (free, runs locally) |
+| Auth | bcrypt password hashes, signed JWT in an httpOnly cookie, 4 roles |
 
-## Folder structure
+## Repository structure
 
 ```
 database/
-  build_all.sql            builds the whole database in the correct order
-  build_all.sh             same, for Linux/macOS
-  common/
-    create_database.sql    creates the warranty_engine database
-    test_framework.sql     helper procedures used by the test files
-  sales_module/            Sales, Warranty and Recall
-    tables.sql
-    procedures_triggers.sql
-    sample_data.sql
-    queries.sql
-    tests.sql
-  service_module/          Service, Repair and Claims (added separately)
+  build_all.sql              builds the MySQL database (both modules + tests)
+  common/                    database creation and test framework
+  sales_module/              Sales, Warranty and Recall (tables, logic, data, queries, tests)
+  service_module/            Service, Repair and Claims (tables, logic, data, queries, tests)
+  vector/
+    vector_setup.sql         pgvector table and indexes
+    similarity_queries.sql   example vector searches
+web/
+  app/                       pages and API routes
+  components/                shared UI components
+  lib/                       database connections, auth, embeddings, similarity search
+  scripts/                   embed_requests.mjs (bulk embedding), test_similarity.mjs
+  middleware.js              session and role checks
+  .env.example               configuration template
+docs/                        project report sections
 ```
 
-## Modules
+## Setup (macOS)
 
-| | Sales module | Service module |
-|---|---|---|
-| Tables | customer, product, product_model, serial_unit, purchase, purchase_item, warranty_plan, warranty, recall_campaign, recall_scope, recall_notification | service_center, technician, spare_part, service_request, repair, repair_part, warranty_claim, replacement, service_status_log, app_user |
-| Functions | fn_has_active_warranty, fn_unit_under_recall | fn_repair_cost |
-| Procedures | sp_register_sale, sp_generate_recall_notifications, sp_expire_warranties | sp_assign_technician, sp_file_warranty_claim, sp_complete_repair, sp_process_replacement |
-| Views | v_warranty_overview, v_recall_affected_units | v_open_service_queue, v_technician_performance, v_part_reorder_alert |
-| Other | full-text search on recalls, daily warranty expiry event | full-text search on issue descriptions, audit log, role-based users |
-| Tests | 20 | 25 |
+### 1. Install the tools (once)
 
-The sales module builds and runs on its own. The service module depends on it: its tables reference customer, serial_unit, warranty and recall_campaign, and its procedures call the sales module's functions. Its files are added to build_all.sql after the sales module block.
+- MySQL 8: already installed if `mysql --version` works.
+- PostgreSQL with pgvector: install Postgres.app from postgresapp.com (pgvector is included). Open it and click Initialize. Then add its tools to Terminal:
+  `echo 'export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc`
+- Node.js 20 LTS from nodejs.org (or `brew install node@20`). Check with `node -v`.
 
-## Setup
-
-Requirements: MySQL 8.0.16 or later.
+### 2. Build the MySQL database
 
 ```bash
 cd database
-mysql -u root -p < build_all.sql
+mysql -u root -p -t < build_all.sql
 ```
 
-Each run drops and recreates the warranty_engine database. The final output shows the test summary for each module (20 of 20 for SALES). Detailed results are stored in the test_result table.
+The last table should show SALES 20/20 and SERVICE 25/25.
 
-Views and some queries use CURRENT_DATE, so values such as days_left depend on the day you run them.
+### 3. Create the vector database
 
-Demo login accounts in app_user all use the password Password@123, stored as a bcrypt hash.
+```bash
+createdb warranty_vectors
+psql -d warranty_vectors -f vector/vector_setup.sql
+```
+
+### 4. Configure the web app
+
+```bash
+cd ../web
+cp .env.example .env.local
+```
+
+Open `.env.local` and fill in your MySQL password. With Postgres.app, set `PG_USER` to your Mac username (run `whoami`) and leave `PG_PASSWORD` empty. Set `JWT_SECRET` to any long random text.
+
+### 5. Install packages and embed the service requests
+
+```bash
+npm install
+npm run embed
+npm run test:vector
+```
+
+The first `npm run embed` downloads the embedding model (about 25 MB). `test:vector` should end with 8 of 8 passed.
+
+### 6. Start the app
+
+```bash
+npm run dev
+```
+
+Open http://localhost:3000.
+
+## Demo accounts
+
+All use the password `Password@123`.
+
+| Username | Role | Sees |
+|---|---|---|
+| admin | ADMIN | everything |
+| staff.jayanagar | SERVICE_STAFF | Jayanagar center queue, sales, recalls, claims |
+| staff.whitefield | SERVICE_STAFF | Whitefield center |
+| tech.arjun | TECHNICIAN | his repair jobs |
+| ananya, rahul, priya, karthik, nikhil | CUSTOMER | their own products and requests |
+
+## Rebuilding
+
+Running `build_all.sql` again resets all MySQL data. After that, run `npm run embed` again so PostgreSQL matches.
 
 ## Requirement coverage
 
 | Requirement | Where |
 |---|---|
-| ER design, keys, relationships, constraints | sales_module/tables.sql, service_module/tables.sql |
-| CREATE, ALTER, DROP, indexes, views | tables.sql and procedures_triggers.sql in both modules, staging table in service_module/queries.sql |
-| INSERT, UPDATE, DELETE, JOIN, GROUP BY, HAVING, ORDER BY, subqueries | sample_data.sql and queries.sql in both modules |
-| Advanced SQL | transactions, stored procedures and functions, triggers, views, indexing with EXPLAIN, full-text search, window functions, CTE, scheduled event |
-| Roles | ADMIN, SERVICE_STAFF, TECHNICIAN, CUSTOMER in app_user |
-| Database-level validation | CHECK, UNIQUE, FOREIGN KEY, ENUM, trigger checks |
-| Test cases | tests.sql in both modules |
-
-## Changes from the original ER diagram
-
-1. WARRANTY_TYPE became warranty_plan (type, duration, claim limit, price), so one unit can hold a standard and an accidental damage plan together.
-2. RECALL_PRODUCT became recall_scope, defined by model and manufacture date range instead of serial number ranges.
-3. PURCHASE_ITEM no longer has quantity, since each row is one serial-numbered unit.
-4. serial_unit has current_owner_id so ownership carries over after a replacement.
-5. Added app_user for login and service_status_log for the audit trail.
-6. A warranty claim is unique per service request, and replacement stores both the old and new unit.
+| ER diagram, relational schema | docs/02_er_and_relational_schema.md |
+| SQL DDL: CREATE, ALTER, DROP, keys, constraints, indexes, views | database/*_module/tables.sql, procedures_triggers.sql |
+| DML and queries: JOIN, GROUP BY, HAVING, subqueries, CTE, windows | database/*_module/sample_data.sql, queries.sql |
+| Advanced SQL: transactions, procedures, functions, triggers, views, indexing, full-text search, event | database/*_module/procedures_triggers.sql |
+| Vector: embeddings, storage, similarity metric, retrieval | database/vector, web/lib/embeddings.mjs, web/lib/similarity.js, docs 06 and 07 |
+| Next.js interface with forms, tables, search, dashboards | web/app |
+| API layer and environment variables | web/app/api, web/lib, web/.env.example |
+| Authentication, minimum two roles | web/middleware.js, web/lib/auth.js, app_user table |
+| Validation and integrity at database level | CHECK, UNIQUE, FK, triggers; tests in database/*/tests.sql |
+| Documentation and test results | docs/ |
